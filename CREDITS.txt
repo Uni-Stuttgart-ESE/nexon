@@ -1,0 +1,9 @@
+Hussein Megahed
+https://github.com/husseinMegahed
+---------------------------------
+Created the base platform's code, including the backend services for upload, deployment, inference, and CRUD operations for models, as well as the user interface.
+
+Corvin Eberlein
+https://github.com/DidiSkywalker
+--------------------------------
+Contributed Dockerization, MLflow experiments, the backend's MLflow synchronization service and small tweaks to the UI.

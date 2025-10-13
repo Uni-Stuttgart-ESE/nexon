@@ -1,0 +1,8 @@
+mlflow
+onnx
+onnxruntime
+scikit-learn
+numpy
+pandas
+skl2onnx
+boto3

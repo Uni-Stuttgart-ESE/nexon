@@ -6,28 +6,35 @@ const Inference = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
-  const selectedModelFromURL = queryParams.get("model"); 
+  const selectedModelFromURL = queryParams.get("model");
+  const selectedVersionFromURL = queryParams.get("version");
 
   const [inputs, setInputs] = useState("");
   const [results, setResults] = useState(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState("");
+  const [selectedVersion, setSelectedVersion] = useState("");
 
   // Fetch available models from the backend
   useEffect(() => {
     axios.get("http://127.0.0.1:8000/deployedModels")
       .then(response => {
-        setModels(response.data || []); 
+        setModels(response.data || []);
         if (selectedModelFromURL) {
           setSelectedModel(selectedModelFromURL);
+        }
+        if (selectedVersionFromURL) {
+          setSelectedVersion(selectedVersionFromURL);
         }
       })
       .catch(error => console.error("Error fetching models:", error));
   }, [selectedModelFromURL]);
 
   const handleModelChange = (event) => {
-    setSelectedModel(event.target.value);
+    const [name, version] = event.target.value.split("/");
+    setSelectedModel(name);
+    setSelectedVersion(version);
   };
 
   const handleInputChange = (event) => {
@@ -49,10 +56,11 @@ const Inference = () => {
     try {
       const inputData = JSON.parse(inputs);
       console.log(inputData)
-      const response = await axios.post(`http://127.0.0.1:8000/inference/infer/${selectedModel}`, { 
-      input: inputData,
-      headers: { "Content-Type": "application/json" }
-     });
+      const endpoint = selectedVersion ? `${selectedModel}/${selectedVersion}` : selectedModel;
+      const response = await axios.post(`http://127.0.0.1:8000/inference/infer/${endpoint}`, {
+        input: inputData,
+        headers: { "Content-Type": "application/json" }
+      });
 
       setResults(response.data.results);
       setStatusMessage("Inference completed successfully!");
@@ -80,10 +88,10 @@ const Inference = () => {
           {/* Select Model */}
           <div style={styles.section}>
             <p style={styles.description}>Select a deployed model:</p>
-            <select value={selectedModel} onChange={handleModelChange} style={styles.dropdown}>
+            <select value={`${selectedModel}/${selectedVersion}`} onChange={handleModelChange} style={styles.dropdown}>
               <option value="">-- Select a Model --</option>
               {models.map((model, index) => (
-                <option key={index} value={model.name}>{model.name}</option>
+                <option key={index} value={`${model.name}/${model.version}`}>{model.name} - v{model.version}</option>
               ))}
             </select>
           </div>

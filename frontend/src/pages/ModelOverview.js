@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 const ModelOverview = () => {
   const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState(null); 
+  const [selectedModel, setSelectedModel] = useState(null);
   const navigate = useNavigate();
   const [notification, setNotification] = useState("");
 
@@ -17,55 +17,55 @@ const ModelOverview = () => {
   }, []);
 
   const deleteModel = async (modelName, modelVersion) => {
-  try {
-    const response = await axios.delete(`http://127.0.0.1:8000/deleteModel/${modelName}/${modelVersion}`
-    );
-    setNotification(`✅ ${response.data.message}`);
+    try {
+      const response = await axios.delete(`http://127.0.0.1:8000/deleteModel/${modelName}/${modelVersion}`
+      );
+      setNotification(`✅ ${response.data.message}`);
 
-    // Remove the notification after 3 seconds
-    setTimeout(() => setNotification(""), 3000);
+      // Remove the notification after 3 seconds
+      setTimeout(() => setNotification(""), 3000);
 
-    // Update state to remove deleted model
-    setModels(models.filter((model) => model.name !== modelName || model.version !== modelVersion));
+      // Update state to remove deleted model
+      setModels(models.filter((model) => model.name !== modelName || model.version !== modelVersion));
 
-  } catch (error) {
-    setNotification("❌ Failed to delete model.");
-    setTimeout(() => setNotification(""), 3000);
-  }
+    } catch (error) {
+      setNotification("❌ Failed to delete model.");
+      setTimeout(() => setNotification(""), 3000);
+    }
   }
 
   const undeployModel = async (modelName, modelVersion) => {
     try {
       // Send a request to the backend to undeploy the model
       const response = await axios.put(`http://127.0.0.1:8000/deployment/undeploy/${modelName}`, {
-         model_name: modelName,
-         model_version: modelVersion 
-    });
-  
+        model_name: modelName,
+        model_version: modelVersion
+      });
+
       // Show success notification
       setNotification(`✅ ${response.data.message}`);
-  
+
       // Remove the notification after 3 seconds
       setTimeout(() => setNotification(""), 3000);
-  
+
       // Update state to remove the model from deployed models
       setModels(models.map(model =>
         model.name === modelName && model.version === modelVersion
           ? { ...model, status: "Pending" } // Change status to "Pending" instead of removing
           : model
       ));
-      
+
     } catch (error) {
       // Show error notification
       setNotification("❌ Failed to undeploy model.");
       setTimeout(() => setNotification(""), 3000);
     }
   };
-  
+
 
   const goBack = () => navigate(-1);
   const navToHomePage = () => navigate('/home');
-  const navToInferencePage = (modelName) => navigate(`/inference?model=${modelName}`);
+  const navToInferencePage = (modelName, modelVersion) => navigate(`/inference?model=${modelName}&version=${modelVersion}`);
 
   return (
     <div style={styles.container}>
@@ -80,37 +80,45 @@ const ModelOverview = () => {
       {notification && (notification.includes("Failed") ? <div style={styles.notificationFailed}>{notification}</div> : <div style={styles.notification}>{notification}</div>)}
 
 
-      {models.length === 0  ? (
+      {models.length === 0 ? (
         <p style={styles.noModels}>No models uploaded yet.</p>
       ) : (
         <div style={styles.modelGrid}>
           {models.map((model, index) => (
             <div key={index} style={styles.modelCard} className="model-card">
-              <h3 style={styles.modelName}>{model.name} - v{model.version}</h3>
+              <h3 style={styles.modelName}>{model.mlflow_uri ? (
+                <a
+                  href={`http://localhost:5000/#/models/${model.name}/versions/${model.version}`}
+                  style={{ color: "#43c9ed", textDecoration: "none" }}
+                  target="_blank"
+                  rel="noopener noreferrer">
+                  <img src="mlflow.svg" alt={model.name} style={styles.modelImage} />
+                </a>
+              ) : null}{model.name} - v{model.version}</h3>
               <p>📅 Uploaded: {model.upload || "Unknown"}</p>
               <p>📦 Size: {model.size || "N/A"}</p>
               <div>
-                <p style={styles.statusText}>⚡ Status: {model.status === "Deployed" ? "Deployed" : "Pending"}</p>
+                <p style={styles.statusText}>⚡ Status: {model.status}</p>
 
                 <div style={styles.buttonContainer}>
                   {model.status === "Deployed" ? (
                     <div style={styles.buttonDiv}>
-                    <button style={styles.button} onClick={() => setSelectedModel(model)}>Details</button>
-                    <button style={styles.button} onClick={() => undeployModel(model.name, model.version)}>Undeploy</button>
+                      <button style={styles.button} onClick={() => setSelectedModel(model)}>Details</button>
+                      <button style={styles.button} onClick={() => undeployModel(model.name, model.version)}>Undeploy</button>
                     </div>
                   ) : (
                     <div>
-                    <button style={styles.button} onClick={() => navigate(`/deploy?model=${model.name}`)}>Deploy</button>
-                    <button style={styles.deleteButton} onClick={() => deleteModel(model.name, model.version)}>
-                    <i className="fa fa-trash-o"></i>
-                    </button>
+                      <button style={styles.button} onClick={() => navigate(`/deploy?model=${model.name}`)}>Deploy</button>
+                      <button style={styles.deleteButton} onClick={() => deleteModel(model.name, model.version)}>
+                        <i className="fa fa-trash-o"></i>
+                      </button>
                     </div>
                   )}
                 </div>
               </div>
 
             </div>
-          ))} 
+          ))}
         </div>
       )}
 
@@ -119,13 +127,27 @@ const ModelOverview = () => {
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
             <h2>Model Details</h2>
+            {
+              selectedModel.mlflow_uri ? (
+                <p>
+                  <a
+                    href={`http://localhost:5000/#/models/${selectedModel.name}/versions/${selectedModel.version}`}
+                    style={{ color: "#43c9ed", textDecoration: "none" }}
+                    target="_blank"
+                    rel="noopener noreferrer">
+                    <img src="mlflow.svg" alt={selectedModel.name} style={styles.modelImage} />{selectedModel.mlflow_uri}
+                  </a><br />
+                  via {selectedModel.mlflow_source_selectors.join(", ")}
+                </p>
+              ) : null
+            }
             <p><strong>Name:</strong> {selectedModel.name}</p>
             <p><strong>ID:</strong> {selectedModel._id}</p>
             <p><strong>Version:</strong> {selectedModel.version}</p>
             <p><strong>Deployed:</strong> {selectedModel.deploy}</p>
             <p><strong>REST API Endpoint:</strong></p>
             <p style={styles.apiBox}>{selectedModel.endpoint}</p>
-            <button style={styles.inferenceButton} onClick={() => navToInferencePage(selectedModel.name)}>Go to Inference</button>
+            <button style={styles.inferenceButton} onClick={() => navToInferencePage(selectedModel.name, selectedModel.version)}>Go to Inference</button>
             <button style={styles.closeButton} onClick={() => setSelectedModel(null)}>Close</button>
           </div>
         </div>
@@ -166,6 +188,12 @@ const styles = {
     boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
     textAlign: "center",
   },
+  modelImage: {
+    width: "20px",
+    height: "20px",
+    verticalAlign: "middle",
+    marginRight: "8px",
+  },
   modelName: {
     fontSize: "20px",
     marginBottom: "10px",
@@ -175,8 +203,8 @@ const styles = {
   button: {
     flex: "1",
     marginTop: "10px",
-    minWidth: "120px", 
-    whiteSpace: "nowrap", 
+    minWidth: "120px",
+    whiteSpace: "nowrap",
     padding: "10px",
     border: "none",
     backgroundColor: "#2575fc",
@@ -239,7 +267,7 @@ const styles = {
     fontSize: "16px",
     marginTop: "10px",
     marginRight: "10px",
-  
+
   },
   closeButton: {
     backgroundColor: "#ff4d4d",
@@ -306,9 +334,9 @@ const styles = {
     transition: "opacity 0.3s ease",
   },
   buttonDiv: {
-    display: "flex",        
-    gap: "10px",           
-    justifyContent: "center", 
-    alignItems: "center",  
+    display: "flex",
+    gap: "10px",
+    justifyContent: "center",
+    alignItems: "center",
   }
 };
