@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
-import os
 import logging
-from typing import Optional
+import os
+from os import environ
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
+from motor.motor_asyncio import (
+    AsyncIOMotorClient,
+    AsyncIOMotorGridFSBucket,
+)
 
 # Load .env for local development (no effect in Docker unless env vars are missing).
 try:
-    from dotenv import load_dotenv, find_dotenv  # pip install python-dotenv
+    from dotenv import find_dotenv, load_dotenv  # pip install python-dotenv
+
     # Do not override variables already provided by the shell or docker-compose.
     load_dotenv(find_dotenv(usecwd=True), override=False)
 except Exception:
@@ -18,27 +22,18 @@ except Exception:
 
 log = logging.getLogger("database")
 
-def _first_env(*keys: str, default: Optional[str] = None) -> Optional[str]:
-    """Return the first non-empty environment value among keys, else default."""
-    for key in keys:
-        value = os.getenv(key)
-        if value:
-            return value
-    return default
 
-# Prefer NEXON_* (compose), then common aliases, then a Docker-friendly default.
-MONGO_URI: str = _first_env(
-    "NEXON_MONGO_URI", "MONGODB_URI", "MONGODB_URL", "MONGO_URI",
-    default="mongodb://mongo:27017",  # service name in docker-compose
-)
-MONGO_DB: str = _first_env(
-    "NEXON_MONGO_DB", "MONGODB_DB", "MONGO_DB",
-    default="onnx_platform",
-)
+MONGO_URI = f"mongodb://{environ['NEXON_MONGO_USER']}:{environ['NEXON_MONGO_PASS']}@{environ['NEXON_MONGO_HOST']}:{environ['NEXON_MONGO_PORT']}"
+DB_NAME = environ["NEXON_MONGO_DB"]
 
 # Tunables with sane defaults
-SERVER_SELECTION_TIMEOUT_MS = int(os.getenv("MONGO_SERVER_SELECTION_TIMEOUT_MS", "10000"))
-UUID_REPRESENTATION = os.getenv("MONGO_UUID_REPRESENTATION", "standard")  # Motor/PyMongo option
+SERVER_SELECTION_TIMEOUT_MS = int(
+    os.getenv("MONGO_SERVER_SELECTION_TIMEOUT_MS", "10000")
+)
+UUID_REPRESENTATION = os.getenv(
+    "MONGO_UUID_REPRESENTATION", "standard"
+)  # Motor/PyMongo option
+
 
 # Redact credentials in logs.
 def _redact(uri: str) -> str:
@@ -54,20 +49,21 @@ def _redact(uri: str) -> str:
     except Exception:
         return "<redacted>"
 
+
 # Single global client for the process
 client: AsyncIOMotorClient = AsyncIOMotorClient(
     MONGO_URI,
     serverSelectionTimeoutMS=SERVER_SELECTION_TIMEOUT_MS,
     uuidRepresentation=UUID_REPRESENTATION,
 )
-db = client[MONGO_DB]
-database = db  # backward-compat alias
+db = client[DB_NAME]
 
 # Collections / buckets
 models_collection = db["models"]
 fs: AsyncIOMotorGridFSBucket = AsyncIOMotorGridFSBucket(db)
 
-log.info("MongoDB connected (uri=%s, db=%s)", _redact(MONGO_URI), MONGO_DB)
+log.info("MongoDB connected (uri=%s, db=%s)", _redact(MONGO_URI), DB_NAME)
+
 
 # Small helper reused by readiness probes.
 async def ping() -> bool:
@@ -79,12 +75,21 @@ async def ping() -> bool:
         log.warning("Mongo ping failed: %s", e)
         return False
 
+
+async def create_indices(self):
+    await self.mlflow_deployments_collection.create_index("timestamp")
+    await self.models_collection.create_index(
+        "mlflow_uri",
+        unique=True,
+        partialFilterExpression={"mlflow_uri": {"$type": "string"}},
+    )
+
+
 __all__ = [
     "MONGO_URI",
-    "MONGO_DB",
+    "DB_NAME",
     "client",
     "db",
-    "database",
     "models_collection",
     "fs",
     "ping",

@@ -2,7 +2,10 @@
 
 **NEXON** is an AI model deployment platform for **ONNX** models. It serves feature-parity **inference over REST and gRPC** behind an **Envoy** gateway. Models are stored in **MongoDB GridFS**, and both services share a single **inference orchestrator** with an **in-process LRU/TTL session cache**. All services are containerized and health-checked for reliable bring-up, benchmarking, and grading.
 ## 🚀 Features
+<<<<<<< conflict 1 of 2
++++++++ wvouxtqy dc794b07 "Finalized robustness/performance scripts (all results PASS); align runners & compose; mark results as linguist-generated"
 - Upload, deploy, list, and delete ONNX models.
+- Deploy ONNX models directly from a MLflow Tracking Server
 - Inference via REST and gRPC with identical request/response semantics.
 - Inference endpoints
   - REST: `POST /inference/infer/{model_name}`
@@ -47,13 +50,14 @@ A complete setup on Windows requires installing WSL, then Docker Desktop with th
 
 ## 📦 Installation (Docker – recommended)
 
-### **1. Clone the Repository**
+### 1. Clone the Repository
+
 ```bash
-git clone https://github.com/AlyAmer1/nexon.git
+git clone https://github.com/Uni-Stuttgart-ESE/nexon.git
 cd nexon
 ```
 
-### **2. Prepare Environment**
+### 2. Prepare Environment
 
 Create `.env` at the repo root (copy from `.env.example`):
 
@@ -62,21 +66,42 @@ Create `.env` at the repo root (copy from `.env.example`):
 docker run --rm -v "${PWD}:/w" alpine:3 sh -lc 'cp /w/.env.example /w/.env'
 ```
 
+For testing no value changes are needed, but it is adviced to change the passwords.
 
 Important keys:
-- `NEXON_MONGO_URI`: Mongo connection string (Docker default: `mongodb://mongo:27017`).
 - `NEXON_MONGO_DB`: database name (default: `onnx_platform`).
 - `LOG_HEALTH`: `1` logs health probes; `0` suppresses noisy health access logs.
 - `ENABLE_REFLECTION`: `1` to enable gRPC reflection (dev convenience).
 - `GRPC_BIND`, `GRPC_MAX_RECV_BYTES`, `GRPC_MAX_SEND_BYTES`: advanced gRPC tuning.
 
-### **3. Build & Start**
+### 3. Start MLflow services
 
+To build and start the MLflow Tracking Server, S3, MySQL and initial MLflow experiments use:
 ```bash
-docker compose up -d --build
+docker compose -f mlflow-compose.yml up --build -d
 ```
 
-### **4. What's Running**
+### 4. Start NEXON
+To build and start the NEXON frontend, backend and MongoDB use:
+```bash
+docker compose -f nexon-compose.yml up --build -d
+```
+
+### 5. Use integration
+- Check [MLflow](http://localhost:5000/#/models) to make sure the initial models are registered
+- Run example requests from the `examples/` directory. 
+
+```bash
+curl -X POST http://localhost:8000/api/mlflow/sync -H "Content-Type: application/json" -d @examples/test_step_1.json
+```
+Optional, for better readable responses:
+```bash
+curl -X POST http://localhost:8000/api/mlflow/sync -H "Content-Type: application/json" -d @examples/test_step_1.json | python -m json.tool
+```
+
+- Check [NEXON](http://localhost:3000/overview) to see your deployed models 
+
+### 6. What's Running
 - Envoy (gateway): `http://localhost:8080`
 - REST API docs (via Envoy): `http://localhost:8080/docs`
 - REST service (direct): `http://localhost:8000` (HTTP/1.1)
@@ -137,6 +162,7 @@ make run-envoy-dev
 ```
 
 **Frontend (REST-only)**
+
 ```bash
 cd frontend
 npm install
@@ -157,8 +183,6 @@ npm start
 >
 > *No change is needed to run via Docker—this is just for editor IntelliSense.*
 > </details>
-
-
 
 ## 🧩 Architecture at a Glance
 

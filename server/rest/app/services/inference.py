@@ -1,4 +1,5 @@
 """REST inference endpoint backed by the shared orchestrator for parity with gRPC."""
+
 from __future__ import annotations
 
 from typing import List, Optional
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/inference", tags=["Inference"])
 
 class InferenceRequest(BaseModel):
     """Nested Python lists representing a single input tensor (row-major)."""
+
     input: list = Field(..., example=[[[0.1, 0.2, 0.3]]])
     # Option B': optional dtype for parity with gRPC; if omitted -> derive from model
     dtype: Optional[str] = Field(
@@ -36,6 +38,7 @@ class InferenceRequest(BaseModel):
 
 class InferenceResponse(BaseModel):
     """Response payload containing the serialized first output tensor."""
+
     results: List[list]
 
 

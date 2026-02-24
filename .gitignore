@@ -67,3 +67,7 @@ server/stubs/
 server/tests/assets/models/*
 # Keep only metadata/scripts
 !server/tests/assets/models/manifest.sha256
+
+# MLflow artefacts
+mlflow_data/
+mlflow_experiments/mlruns/

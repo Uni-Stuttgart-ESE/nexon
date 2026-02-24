@@ -12,22 +12,27 @@ from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 
 import inference_pb2 as pb
 from .model_cache import ModelCache
+from .model_repository import ModelRepository
 
 
 # Domain errors surfaced to API layers.
 
+
 class ModelNotFoundError(Exception):
     """No document exists for the given model name."""
+
     pass
 
 
 class ModelNotDeployedError(Exception):
     """Model exists, but no document is marked status='Deployed'."""
+
     pass
 
 
 class InvalidInputError(Exception):
     """Input cannot be bound to model input[0] (dtype/shape/name mismatch)."""
+
     pass
 
 
@@ -35,13 +40,13 @@ class InvalidInputError(Exception):
 
 # ONNX type -> NumPy dtype (little-endian where applicable)
 ONNX_TO_NP = {
-    "tensor(float)":   np.dtype("<f4"),   # float32
+    "tensor(float)": np.dtype("<f4"),  # float32
     "tensor(float32)": np.dtype("<f4"),
-    "tensor(double)":  np.dtype("<f8"),   # float64
+    "tensor(double)": np.dtype("<f8"),  # float64
     "tensor(float64)": np.dtype("<f8"),
-    "tensor(int64)":   np.dtype("<i8"),
-    "tensor(int32)":   np.dtype("<i4"),
-    "tensor(bool)":    np.dtype(np.bool_),
+    "tensor(int64)": np.dtype("<i8"),
+    "tensor(int32)": np.dtype("<i4"),
+    "tensor(bool)": np.dtype(np.bool_),
     "tensor(boolean)": np.dtype(np.bool_),
 }
 
@@ -49,14 +54,14 @@ ONNX_TO_NP = {
 STR_TO_NP = {
     "float32": np.dtype("<f4"),
     "float64": np.dtype("<f8"),
-    "int32":   np.dtype("<i4"),
-    "int64":   np.dtype("<i8"),
-    "bool":    np.dtype(np.bool_),
+    "int32": np.dtype("<i4"),
+    "int64": np.dtype("<i8"),
+    "bool": np.dtype(np.bool_),
 }
 
 # Sentinels to preserve semantics for gRPC request data_type.
-DT_UNSPECIFIED_SENTINEL = object()   # means: derive dtype from model
-DT_UNSUPPORTED_SENTINEL = object()   # means: explicitly unsupported over raw-bytes path
+DT_UNSPECIFIED_SENTINEL = object()  # means: derive dtype from model
+DT_UNSUPPORTED_SENTINEL = object()  # means: explicitly unsupported over raw-bytes path
 
 # Centralized proto enum -> NumPy dtype (imported by gRPC server)
 # - UNSPECIFIED -> DT_UNSPECIFIED_SENTINEL (derive from model)
@@ -64,10 +69,10 @@ DT_UNSUPPORTED_SENTINEL = object()   # means: explicitly unsupported over raw-by
 PROTO_TO_NP = {
     pb.DT_FLOAT32: np.dtype("<f4"),
     pb.DT_FLOAT64: np.dtype("<f8"),
-    pb.DT_INT32:   np.dtype("<i4"),
-    pb.DT_INT64:   np.dtype("<i8"),
-    pb.DT_BOOL:    np.dtype(np.bool_),
-    pb.DT_STRING:  DT_UNSUPPORTED_SENTINEL,
+    pb.DT_INT32: np.dtype("<i4"),
+    pb.DT_INT64: np.dtype("<i8"),
+    pb.DT_BOOL: np.dtype(np.bool_),
+    pb.DT_STRING: DT_UNSUPPORTED_SENTINEL,
     pb.DT_UNSPECIFIED: DT_UNSPECIFIED_SENTINEL,
 }
 
@@ -93,7 +98,7 @@ def _shape_compatible(expected, actual) -> bool:
 
 def _numpy_from_bytes(buf: bytes, dims: Sequence[int], dtype: np.dtype) -> np.ndarray:
     """Rebuild a C-contiguous NumPy array from raw bytes and dims, validating size."""
-    dims = [int(d) for d in dims]               # ensure plain ints
+    dims = [int(d) for d in dims]  # ensure plain ints
     if not dims:
         raise InvalidInputError("input.dims must be provided and non-empty.")
 
@@ -119,6 +124,7 @@ def _numpy_from_bytes(buf: bytes, dims: Sequence[int], dtype: np.dtype) -> np.nd
 
 # Orchestrator implementation.
 
+
 @dataclass
 class InferenceOrchestrator:
     """
@@ -126,6 +132,8 @@ class InferenceOrchestrator:
 
     One instance per process is fine; it holds an in-process cache only.
     """
+
+    repository: ModelRepository
     models_collection: Any
     gridfs_bucket: AsyncIOMotorGridFSBucket
     _cache: ModelCache | None = None
@@ -134,7 +142,7 @@ class InferenceOrchestrator:
     def cache(self) -> ModelCache:
         """Return the lazily constructed ModelCache."""
         if self._cache is None:
-            self._cache = ModelCache(gridfs_db=self.gridfs_bucket)
+            self._cache = ModelCache(self.repository)
         return self._cache
 
     async def _resolve_deployed_file_id(self, model_name: str) -> ObjectId:
@@ -156,11 +164,11 @@ class InferenceOrchestrator:
 
     # REST path: JSON lists -> NumPy (Option B': optional dtype).
     async def run(
-            self,
-            *,
-            model_name: str,
-            input_data: Any,
-            request_dtype_str: Optional[str] = None,
+        self,
+        *,
+        model_name: str,
+        input_data: Any,
+        request_dtype_str: Optional[str] = None,
     ) -> List[np.ndarray]:
         """
         Execute inference for REST clients and return a single NumPy tensor.
@@ -192,7 +200,9 @@ class InferenceOrchestrator:
         if request_dtype_str is not None:
             req_np = STR_TO_NP.get(request_dtype_str)
             if req_np is None:
-                raise InvalidInputError(f"Unsupported request dtype: {request_dtype_str}")
+                raise InvalidInputError(
+                    f"Unsupported request dtype: {request_dtype_str}"
+                )
             if req_np != np_dtype:
                 raise InvalidInputError(
                     f"dtype mismatch: request {request_dtype_str} vs model {onnx_dt}"
@@ -215,13 +225,13 @@ class InferenceOrchestrator:
 
     # gRPC path: raw bytes + dims -> NumPy (Option B': optional dtype).
     async def run_from_bytes(
-            self,
-            *,
-            model_name: str,
-            dims: Sequence[int],
-            raw_bytes: bytes,
-            provided_name: str = "",
-            request_dtype: Optional[np.dtype] = None,
+        self,
+        *,
+        model_name: str,
+        dims: Sequence[int],
+        raw_bytes: bytes,
+        provided_name: str = "",
+        request_dtype: Optional[np.dtype] = None,
     ) -> List[np.ndarray]:
         """
         Execute inference for gRPC clients given serialized tensor bytes.
@@ -253,7 +263,9 @@ class InferenceOrchestrator:
 
         # Optional name validation
         if provided_name and provided_name != in_name:
-            raise InvalidInputError(f"input.name '{provided_name}' does not match model input[0] '{in_name}'.")
+            raise InvalidInputError(
+                f"input.name '{provided_name}' does not match model input[0] '{in_name}'."
+            )
 
         # Optional dtype validation
         if request_dtype is not None and request_dtype != np_dtype:

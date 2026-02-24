@@ -1,0 +1,16 @@
+{
+  "models": [
+    [
+      "ticket_assignment",
+      "latest"
+    ],
+    [
+      "sale_prediction",
+      "@experimental"
+    ],
+    [
+      "product_recommendation",
+      "stage:production"
+    ]
+  ]
+}

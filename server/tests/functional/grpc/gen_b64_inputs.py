@@ -14,7 +14,10 @@ Usage examples:
 """
 
 from __future__ import annotations
-import argparse, base64, json, sys
+import argparse
+import base64
+import json
+import sys
 from typing import Dict, Any
 import numpy as np
 

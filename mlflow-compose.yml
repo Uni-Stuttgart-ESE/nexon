@@ -1,0 +1,119 @@
+name: mlflow-infra
+
+services:
+  mlflow-tracking-server:
+    build: ./mlflow_server
+    container_name: mlflow-tracking-server
+    ports:
+      - "5000:5000"
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_REGION}
+      MLFLOW_BACKEND_STORE_URI: mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysqldb:3306/${MYSQL_DATABASE}
+      MLFLOW_REGISTRY_STORE_URI: mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysqldb:3306/${MYSQL_DATABASE}
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: s3://${AWS_BUCKET_NAME}/
+      MLFLOW_ARTIFACTS_DESTINATION: s3://${AWS_BUCKET_NAME}/
+      MLFLOW_SERVER_ARTIFACT_DESTINATION: s3://${AWS_BUCKET_NAME}/
+      AWS_ENDPOINT_URL: http://s3:9000
+    depends_on:
+      - mysqldb
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"] # Improved test
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    entrypoint:
+      - mlflow
+      - server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --backend-store-uri
+      - mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysqldb:3306/${MYSQL_DATABASE}
+      - --registry-store-uri
+      - mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysqldb:3306/${MYSQL_DATABASE}
+      - --default-artifact-root
+      - s3://${AWS_BUCKET_NAME}/
+      - --artifacts-destination
+      - s3://${AWS_BUCKET_NAME}/
+    networks:
+      - internal
+      - mlflow
+
+  mlflow-experiments:
+    build: ./mlflow_experiments
+    container_name: mlflow-experiments
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow-tracking-server:5000
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_REGION}
+      MLFLOW_S3_ENDPOINT_URL: http://s3:9000
+    depends_on:
+      mlflow-tracking-server:
+        condition: service_healthy
+    command: python /app/run_experiments.py
+    networks:
+      - internal
+      - mlflow
+
+  s3:
+    image: minio/minio
+    container_name: mlflow_s3
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=${AWS_ACCESS_KEY_ID}
+      - MINIO_ROOT_PASSWORD=${AWS_SECRET_ACCESS_KEY}
+    command: server /data --console-address ":9001"
+    networks:
+      - internal
+      - mlflow
+    volumes:
+      - ./mlflow_data/s3:/data
+
+  create_s3_buckets:
+    image: minio/mc
+    depends_on:
+      - "s3"
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc alias set minio http://s3:9000 '${AWS_ACCESS_KEY_ID}' '${AWS_SECRET_ACCESS_KEY}') do echo '...waiting...' && sleep 1; done;
+      /usr/bin/mc mb minio/${AWS_BUCKET_NAME};
+      exit 0;
+      "
+    networks:
+      - internal
+
+  mysqldb:
+    image: mysql:8-oracle # -oracle tag supports arm64 architecture!
+    restart: unless-stopped
+    container_name: mlflow_db
+    expose:
+      - "3306"
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mlflow_db:/var/lib/mysql
+    networks:
+      - internal
+
+volumes:
+  mlflow_s3:
+    name: mlflow_s3
+  mlflow_db:
+    name: mlflow_db
+
+networks:
+  internal:
+  mlflow:
+    name: mlflow-network
+    driver: bridge

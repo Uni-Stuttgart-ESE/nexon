@@ -41,17 +41,21 @@ class ModelCache:
     """
 
     def __init__(
-            self,
-            gridfs_db: Any,
-            *,
-            max_entries: int | None = None,
-            ttl_seconds: int | None = None,
-            providers: list[str] | None = None,
+        self,
+        gridfs_db: Any,
+        *,
+        max_entries: int | None = None,
+        ttl_seconds: int | None = None,
+        providers: list[str] | None = None,
     ):
         if not hasattr(gridfs_db, "open_download_stream"):
-            raise TypeError("gridfs_db must expose 'open_download_stream(file_id)' (Motor GridFS bucket).")
+            raise TypeError(
+                "gridfs_db must expose 'open_download_stream(file_id)' (Motor GridFS bucket)."
+            )
         # Soft check only; allow fakes/mocks in tests
-        if AsyncIOMotorGridFSBucket is not None and not isinstance(gridfs_db, AsyncIOMotorGridFSBucket):
+        if AsyncIOMotorGridFSBucket is not None and not isinstance(
+            gridfs_db, AsyncIOMotorGridFSBucket
+        ):
             pass
 
         self._fs = gridfs_db
@@ -69,7 +73,9 @@ class ModelCache:
         # Session options (robust to missing stubs in IDEs)
         SessionOptionsCls = getattr(ort, "SessionOptions", None)
         if SessionOptionsCls is None:
-            raise RuntimeError("onnxruntime.SessionOptions not found -- check your onnxruntime installation.")
+            raise RuntimeError(
+                "onnxruntime.SessionOptions not found -- check your onnxruntime installation."
+            )
         so = SessionOptionsCls()
         so.intra_op_num_threads = int(os.environ.get("ORT_INTRA_OP_THREADS", "0"))
         so.inter_op_num_threads = int(os.environ.get("ORT_INTER_OP_THREADS", "0"))
@@ -129,9 +135,13 @@ class ModelCache:
                 grid_out = await self._fs.open_download_stream(file_id=oid)
                 model_bytes = await grid_out.read()
                 if self._verbose:
-                    self._log.debug("READ %d bytes for file_id=%s", len(model_bytes), oid)
+                    self._log.debug(
+                        "READ %d bytes for file_id=%s", len(model_bytes), oid
+                    )
             except Exception as e:
-                raise RuntimeError(f"Failed to read model bytes from GridFS for {oid}: {e}") from e
+                raise RuntimeError(
+                    f"Failed to read model bytes from GridFS for {oid}: {e}"
+                ) from e
             finally:
                 # Best-effort close; supports both async and sync close() implementations.
                 try:
@@ -144,7 +154,9 @@ class ModelCache:
                 except Exception:
                     # Never let a close error mask the actual operation outcome.
                     if self._verbose:
-                        self._log.debug("Ignoring GridFS close() error for file_id=%s", oid)
+                        self._log.debug(
+                            "Ignoring GridFS close() error for file_id=%s", oid
+                        )
 
             try:
                 session = ort.InferenceSession(
@@ -153,7 +165,9 @@ class ModelCache:
                     providers=self._providers,
                 )
             except Exception as e:
-                raise RuntimeError(f"Failed to create InferenceSession for {oid}: {e}") from e
+                raise RuntimeError(
+                    f"Failed to create InferenceSession for {oid}: {e}"
+                ) from e
 
             async with self._global_lock:
                 self._cache[oid] = (session, now, now)
@@ -163,7 +177,9 @@ class ModelCache:
 
             return session
 
-    async def _get_if_fresh(self, oid: ObjectId, now: float) -> OrtInferenceSession | None:
+    async def _get_if_fresh(
+        self, oid: ObjectId, now: float
+    ) -> OrtInferenceSession | None:
         """Return cached session if unexpired; otherwise purge and return None."""
         tpl = self._cache.get(oid)
         if not tpl:
