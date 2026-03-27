@@ -2,8 +2,7 @@
 
 **NEXON** is an AI model deployment platform for **ONNX** models. It serves feature-parity **inference over REST and gRPC** behind an **Envoy** gateway. Models are stored in **MongoDB GridFS**, and both services share a single **inference orchestrator** with an **in-process LRU/TTL session cache**. All services are containerized and health-checked for reliable bring-up, benchmarking, and grading.
 ## 🚀 Features
-<<<<<<< conflict 1 of 2
-+++++++ wvouxtqy dc794b07 "Finalized robustness/performance scripts (all results PASS); align runners & compose; mark results as linguist-generated"
+
 - Upload, deploy, list, and delete ONNX models.
 - Deploy ONNX models directly from a MLflow Tracking Server
 - Inference via REST and gRPC with identical request/response semantics.

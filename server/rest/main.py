@@ -10,7 +10,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 # Shared DB handles
-from ..shared import database
+from shared import database
+
 from .app.controller.database import close_mongo_connection, connect_to_mongo
 from .app.services import deployment, inference, mlflow, models, upload
 
